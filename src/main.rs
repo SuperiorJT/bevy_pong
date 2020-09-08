@@ -4,7 +4,6 @@ use bevy::{
     render::pass::ClearColor,
     sprite::collide_aabb::{collide, Collision},
 };
-
 fn main() {
     App::build()
         .add_resource(WindowDescriptor {
@@ -13,7 +12,7 @@ fn main() {
         })
         .add_default_plugins()
         .add_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .add_resource(BallResetTimer(Timer::from_seconds(2.0), false))
+        .add_resource(BallResetTimer(Timer::from_seconds(2.0, false)))
         .add_startup_system(setup.system())
         .add_system(player_input_system.system())
         .add_system(paddle_movement_system.system())
@@ -47,7 +46,7 @@ struct Ball {
     velocity: Vec3,
 }
 
-struct BallResetTimer(Timer, bool); // bool is used to prevent logic repeating when in finished state
+struct BallResetTimer(Timer); // bool is used to prevent logic repeating when in finished state
 
 struct Player {
     binds: KeyBinds,
@@ -243,9 +242,9 @@ fn ball_movement_system(time: Res<Time>, mut query: Query<(&Ball, &mut Translati
 fn ball_reset_system(time: Res<Time>, mut timer: ResMut<BallResetTimer>, mut ball: Mut<Ball>) {
     timer.0.tick(time.delta_seconds);
 
-    if timer.0.finished && timer.1 {
+    if timer.0.finished && timer.0.repeating {
         ball.velocity = 400.0 * Vec3::new(0.5, -0.5, 0.0).normalize();
-        timer.1 = false;
+        timer.0.repeating = false;
     }
 }
 
@@ -280,7 +279,7 @@ fn ball_collision_system(
                         text.value = format!("{} {}", scoreboard.0, scoreboard.1);
                         *velocity = Vec3::new(0.0, 0.0, 0.0);
                         *ball_translation = Translation(Vec3::new(0.0, 0.0, 0.0));
-                        ball_reset_timer.1 = true;
+                        ball_reset_timer.0.repeating = true;
                         ball_reset_timer.0.reset();
                     }
                 }
