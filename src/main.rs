@@ -11,9 +11,9 @@ fn main() {
             title: "Bevy Pong".to_string(),
             ..Default::default()
         })
-        .add_default_plugins()
+        .add_plugins(DefaultPlugins)
         .add_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .add_resource(BallResetTimer(Timer::from_seconds(2.0), false))
+        .add_resource(BallResetTimer(Timer::from_seconds(2.0, false), false))
         .add_startup_system(setup.system())
         .add_system(player_input_system.system())
         .add_system(paddle_movement_system.system())
@@ -66,9 +66,10 @@ fn setup(
         // player 1
         .spawn(SpriteComponents {
             material: materials.add(Color::WHITE.into()),
-            translation: Translation(Vec3::new(-600.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(-600.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(20.0, 120.0),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -86,9 +87,10 @@ fn setup(
         // player 2
         .spawn(SpriteComponents {
             material: materials.add(Color::WHITE.into()),
-            translation: Translation(Vec3::new(600.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(600.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(20.0, 120.0),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -106,9 +108,10 @@ fn setup(
         // ball
         .spawn(SpriteComponents {
             material: materials.add(Color::WHITE.into()),
-            translation: Translation(Vec3::new(0.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(20.0, 20.0),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -121,9 +124,10 @@ fn setup(
         // top
         .spawn(SpriteComponents {
             material: materials.add(Color::WHITE.into()),
-            translation: Translation(Vec3::new(0.0, 345.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, 345.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(1280.0, 30.0),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -131,27 +135,30 @@ fn setup(
         // bottom
         .spawn(SpriteComponents {
             material: materials.add(Color::WHITE.into()),
-            translation: Translation(Vec3::new(0.0, -345.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(0.0, -345.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(1280.0, 30.0),
+                ..Default::default()
             },
             ..Default::default()
         })
         .with(Collider::Solid)
         // left
         .spawn(SpriteComponents {
-            translation: Translation(Vec3::new(-690.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(-690.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(100.0, 720.0),
+                ..Default::default()
             },
             ..Default::default()
         })
         .with(Collider::Scoreable)
         // right
         .spawn(SpriteComponents {
-            translation: Translation(Vec3::new(690.0, 0.0, 0.0)),
+            transform: Transform::from_translation(Vec3::new(690.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(100.0, 720.0),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -162,12 +169,13 @@ fn setup(
         material: materials.add(Color::WHITE.into()),
         sprite: Sprite {
             size: Vec2::new(1.0, 720.0),
+            ..Default::default()
         },
         ..Default::default()
     });
 
     // Scoreboard
-    let font_handle = asset_server.load("assets/fonts/bit5x3.ttf").unwrap();
+    let font_handle = asset_server.load("assets/fonts/bit5x3.ttf");
     commands
         .spawn(NodeComponents {
             style: Style {
@@ -207,7 +215,7 @@ fn player_input_system(
     keyboard_input: Res<Input<KeyCode>>,
     mut query: Query<(&Player, &mut Paddle)>,
 ) {
-    for (player, mut paddle) in &mut query.iter() {
+    for (player, mut paddle) in query.iter_mut() {
         if keyboard_input.pressed(player.binds.up) {
             paddle.move_state = PaddleMovementState::Up
         } else if keyboard_input.pressed(player.binds.down) {
@@ -218,25 +226,28 @@ fn player_input_system(
     }
 }
 
-fn paddle_movement_system(time: Res<Time>, mut query: Query<(&Paddle, &mut Translation)>) {
-    for (paddle, mut translation) in &mut query.iter() {
+fn paddle_movement_system(time: Res<Time>, mut query: Query<(&Paddle, &mut Transform)>) {
+    for (paddle, mut transform) in query.iter_mut() {
         match paddle.move_state {
-            PaddleMovementState::Up => *translation.0.y_mut() += time.delta_seconds * paddle.speed,
+            PaddleMovementState::Up => {
+                *transform.translation.y_mut() += time.delta_seconds * paddle.speed
+            }
             PaddleMovementState::Down => {
-                *translation.0.y_mut() += time.delta_seconds * -1.0 * paddle.speed
+                *transform.translation.y_mut() += time.delta_seconds * -1.0 * paddle.speed
             }
             _ => {}
         }
 
-        *translation.0.y_mut() = f32::max(-270.0, f32::min(270.0, translation.0.y()))
+        *transform.translation.y_mut() =
+            f32::max(-270.0, f32::min(270.0, transform.translation.y()))
     }
 }
 
-fn ball_movement_system(time: Res<Time>, mut query: Query<(&Ball, &mut Translation)>) {
+fn ball_movement_system(time: Res<Time>, mut query: Query<(&Ball, &mut Transform)>) {
     let delta_seconds = f32::min(0.2, time.delta_seconds);
 
-    for (ball, mut translation) in &mut query.iter() {
-        translation.0 += ball.velocity * delta_seconds;
+    for (ball, mut transform) in query.iter_mut() {
+        transform.translation += ball.velocity * delta_seconds;
     }
 }
 
@@ -251,35 +262,35 @@ fn ball_reset_system(time: Res<Time>, mut timer: ResMut<BallResetTimer>, mut bal
 
 fn ball_collision_system(
     mut ball_reset_timer: ResMut<BallResetTimer>,
-    mut ball_query: Query<(&mut Ball, &mut Sprite, &mut Translation)>,
-    mut other_query: Query<(&Collider, &Translation, &Sprite)>,
+    mut ball_query: Query<(&mut Ball, &mut Sprite, &mut Transform)>,
+    other_query: Query<(&Collider, &Transform, &Sprite)>,
     mut scoreboard_query: Query<(&mut Scoreboard, &mut Text)>,
 ) {
-    for (mut ball, ball_sprite, mut ball_translation) in &mut ball_query.iter() {
+    for (mut ball, ball_sprite, mut ball_transform) in ball_query.iter_mut() {
         let ball_size = ball_sprite.size;
         let velocity = &mut ball.velocity;
 
-        for (collider, other_translation, other_sprite) in &mut other_query.iter() {
+        for (collider, other_transform, other_sprite) in other_query.iter() {
             let collision = collide(
-                ball_translation.0,
+                ball_transform.translation,
                 ball_size,
-                other_translation.0,
+                other_transform.translation,
                 other_sprite.size,
             );
 
             if let Some(collision) = collision {
                 // Update scoreboard if we hit a goal
                 if let &Collider::Scoreable = collider {
-                    for (mut scoreboard, mut text) in &mut scoreboard_query.iter() {
-                        if ball_translation.0.x() > 0.0 {
+                    for (mut scoreboard, mut text) in scoreboard_query.iter_mut() {
+                        if ball_transform.translation.x() > 0.0 {
                             scoreboard.0 += 1;
                         }
-                        if ball_translation.0.x() < 0.0 {
+                        if ball_transform.translation.x() < 0.0 {
                             scoreboard.1 += 1;
                         }
                         text.value = format!("{} {}", scoreboard.0, scoreboard.1);
                         *velocity = Vec3::new(0.0, 0.0, 0.0);
-                        *ball_translation = Translation(Vec3::new(0.0, 0.0, 0.0));
+                        ball_transform.translation = Vec3::new(0.0, 0.0, 0.0);
                         ball_reset_timer.1 = true;
                         ball_reset_timer.0.reset();
                     }
@@ -289,7 +300,7 @@ fn ball_collision_system(
                     Collision::Left => {
                         if velocity.x() > 0.0 {
                             *velocity.x_mut() = -velocity.x();
-                            *ball_translation.0.x_mut() = other_translation.0.x()
+                            *ball_transform.translation.x_mut() = other_transform.translation.x()
                                 - other_sprite.size.x() / 2.0
                                 - ball_size.x() / 2.0;
                         }
@@ -297,7 +308,7 @@ fn ball_collision_system(
                     Collision::Right => {
                         if velocity.x() < 0.0 {
                             *velocity.x_mut() = -velocity.x();
-                            *ball_translation.0.x_mut() = other_translation.0.x()
+                            *ball_transform.translation.x_mut() = other_transform.translation.x()
                                 + other_sprite.size.x() / 2.0
                                 + ball_size.x() / 2.0;
                         }
@@ -305,7 +316,7 @@ fn ball_collision_system(
                     Collision::Top => {
                         if velocity.y() < 0.0 {
                             *velocity.y_mut() = -velocity.y();
-                            *ball_translation.0.y_mut() = other_translation.0.y()
+                            *ball_transform.translation.y_mut() = other_transform.translation.y()
                                 + other_sprite.size.y() / 2.0
                                 + ball_size.y() / 2.0;
                         }
@@ -313,7 +324,7 @@ fn ball_collision_system(
                     Collision::Bottom => {
                         if velocity.y() > 0.0 {
                             *velocity.y_mut() = -velocity.y();
-                            *ball_translation.0.y_mut() = other_translation.0.y()
+                            *ball_transform.translation.y_mut() = other_transform.translation.y()
                                 - other_sprite.size.y() / 2.0
                                 - ball_size.y() / 2.0;
                         }
