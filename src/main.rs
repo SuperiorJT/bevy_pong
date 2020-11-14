@@ -175,7 +175,7 @@ fn setup(
     });
 
     // Scoreboard
-    let font_handle = asset_server.load("assets/fonts/bit5x3.ttf");
+    let font_handle = asset_server.load("fonts/bit5x3.ttf");
     commands
         .spawn(NodeComponents {
             style: Style {
