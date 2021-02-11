@@ -1,5 +1,4 @@
 use bevy::{
-    ecs::Mut,
     prelude::*,
     render::pass::ClearColor,
     sprite::collide_aabb::{collide, Collision},
@@ -56,15 +55,15 @@ struct Player {
 struct Scoreboard(usize, usize);
 
 fn setup(
-    mut commands: Commands,
+    commands: &mut Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
     commands
-        .spawn(Camera2dComponents::default())
-        .spawn(UiCameraComponents::default())
+        .spawn(Camera2dBundle::default())
+        .spawn(CameraUiBundle::default())
         // player 1
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(Color::WHITE.into()),
             transform: Transform::from_translation(Vec3::new(-600.0, 0.0, 0.0)),
             sprite: Sprite {
@@ -85,7 +84,7 @@ fn setup(
         })
         .with(Collider::Solid)
         // player 2
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(Color::WHITE.into()),
             transform: Transform::from_translation(Vec3::new(600.0, 0.0, 0.0)),
             sprite: Sprite {
@@ -106,7 +105,7 @@ fn setup(
         })
         .with(Collider::Solid)
         // ball
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(Color::WHITE.into()),
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             sprite: Sprite {
@@ -122,7 +121,7 @@ fn setup(
     // Walls and goal areas
     commands
         // top
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(Color::WHITE.into()),
             transform: Transform::from_translation(Vec3::new(0.0, 345.0, 0.0)),
             sprite: Sprite {
@@ -133,7 +132,7 @@ fn setup(
         })
         .with(Collider::Solid)
         // bottom
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             material: materials.add(Color::WHITE.into()),
             transform: Transform::from_translation(Vec3::new(0.0, -345.0, 0.0)),
             sprite: Sprite {
@@ -144,7 +143,7 @@ fn setup(
         })
         .with(Collider::Solid)
         // left
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             transform: Transform::from_translation(Vec3::new(-690.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(100.0, 720.0),
@@ -154,7 +153,7 @@ fn setup(
         })
         .with(Collider::Scoreable)
         // right
-        .spawn(SpriteComponents {
+        .spawn(SpriteBundle {
             transform: Transform::from_translation(Vec3::new(690.0, 0.0, 0.0)),
             sprite: Sprite {
                 size: Vec2::new(100.0, 720.0),
@@ -165,7 +164,7 @@ fn setup(
         .with(Collider::Scoreable);
 
     // Divider
-    commands.spawn(SpriteComponents {
+    commands.spawn(SpriteBundle {
         material: materials.add(Color::WHITE.into()),
         sprite: Sprite {
             size: Vec2::new(1.0, 720.0),
@@ -177,7 +176,7 @@ fn setup(
     // Scoreboard
     let font_handle = asset_server.load("fonts/bit5x3.ttf");
     commands
-        .spawn(NodeComponents {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
@@ -188,7 +187,7 @@ fn setup(
         })
         .with_children(|parent| {
             parent
-                .spawn(TextComponents {
+                .spawn(TextBundle {
                     style: Style {
                         align_self: AlignSelf::FlexEnd,
                         margin: Rect {
@@ -203,6 +202,7 @@ fn setup(
                         style: TextStyle {
                             font_size: 60.0,
                             color: Color::WHITE,
+                            ..Default::default()
                         },
                     },
                     ..Default::default()
@@ -230,32 +230,38 @@ fn paddle_movement_system(time: Res<Time>, mut query: Query<(&Paddle, &mut Trans
     for (paddle, mut transform) in query.iter_mut() {
         match paddle.move_state {
             PaddleMovementState::Up => {
-                *transform.translation.y_mut() += time.delta_seconds * paddle.speed
+                transform.translation.y += time.delta_seconds() * paddle.speed
             }
             PaddleMovementState::Down => {
-                *transform.translation.y_mut() += time.delta_seconds * -1.0 * paddle.speed
+                transform.translation.y += time.delta_seconds() * -1.0 * paddle.speed
             }
-            _ => {}
+
+            PaddleMovementState::None => {}
         }
 
-        *transform.translation.y_mut() =
-            f32::max(-270.0, f32::min(270.0, transform.translation.y()))
+        transform.translation.y = f32::max(-270.0, f32::min(270.0, transform.translation.y))
     }
 }
 
 fn ball_movement_system(time: Res<Time>, mut query: Query<(&Ball, &mut Transform)>) {
-    let delta_seconds = f32::min(0.2, time.delta_seconds);
+    let delta_seconds = f32::min(0.2, time.delta_seconds());
 
     for (ball, mut transform) in query.iter_mut() {
         transform.translation += ball.velocity * delta_seconds;
     }
 }
 
-fn ball_reset_system(time: Res<Time>, mut timer: ResMut<BallResetTimer>, mut ball: Mut<Ball>) {
-    timer.0.tick(time.delta_seconds);
+fn ball_reset_system(
+    time: Res<Time>,
+    mut timer: ResMut<BallResetTimer>,
+    mut balls: Query<&mut Ball>,
+) {
+    timer.0.tick(time.delta_seconds());
 
-    if timer.0.finished && timer.1 {
-        ball.velocity = 400.0 * Vec3::new(0.5, -0.5, 0.0).normalize();
+    if timer.0.finished() && timer.1 {
+        for mut ball in balls.iter_mut() {
+            ball.velocity = 400.0 * Vec3::new(0.5, -0.5, 0.0).normalize();
+        }
         timer.1 = false;
     }
 }
@@ -282,10 +288,10 @@ fn ball_collision_system(
                 // Update scoreboard if we hit a goal
                 if let &Collider::Scoreable = collider {
                     for (mut scoreboard, mut text) in scoreboard_query.iter_mut() {
-                        if ball_transform.translation.x() > 0.0 {
+                        if ball_transform.translation.x > 0.0 {
                             scoreboard.0 += 1;
                         }
-                        if ball_transform.translation.x() < 0.0 {
+                        if ball_transform.translation.x < 0.0 {
                             scoreboard.1 += 1;
                         }
                         text.value = format!("{} {}", scoreboard.0, scoreboard.1);
@@ -298,35 +304,35 @@ fn ball_collision_system(
 
                 match collision {
                     Collision::Left => {
-                        if velocity.x() > 0.0 {
-                            *velocity.x_mut() = -velocity.x();
-                            *ball_transform.translation.x_mut() = other_transform.translation.x()
-                                - other_sprite.size.x() / 2.0
-                                - ball_size.x() / 2.0;
+                        if velocity.x > 0.0 {
+                            velocity.x = -velocity.x;
+                            ball_transform.translation.x = other_transform.translation.x
+                                - other_sprite.size.x / 2.0
+                                - ball_size.x / 2.0;
                         }
                     }
                     Collision::Right => {
-                        if velocity.x() < 0.0 {
-                            *velocity.x_mut() = -velocity.x();
-                            *ball_transform.translation.x_mut() = other_transform.translation.x()
-                                + other_sprite.size.x() / 2.0
-                                + ball_size.x() / 2.0;
+                        if velocity.x < 0.0 {
+                            velocity.x = -velocity.x;
+                            ball_transform.translation.x = other_transform.translation.x
+                                + other_sprite.size.x / 2.0
+                                + ball_size.x / 2.0;
                         }
                     }
                     Collision::Top => {
-                        if velocity.y() < 0.0 {
-                            *velocity.y_mut() = -velocity.y();
-                            *ball_transform.translation.y_mut() = other_transform.translation.y()
-                                + other_sprite.size.y() / 2.0
-                                + ball_size.y() / 2.0;
+                        if velocity.y < 0.0 {
+                            velocity.y = -velocity.y;
+                            ball_transform.translation.y = other_transform.translation.y
+                                + other_sprite.size.y / 2.0
+                                + ball_size.y / 2.0;
                         }
                     }
                     Collision::Bottom => {
-                        if velocity.y() > 0.0 {
-                            *velocity.y_mut() = -velocity.y();
-                            *ball_transform.translation.y_mut() = other_transform.translation.y()
-                                - other_sprite.size.y() / 2.0
-                                - ball_size.y() / 2.0;
+                        if velocity.y > 0.0 {
+                            velocity.y = -velocity.y;
+                            ball_transform.translation.y = other_transform.translation.y
+                                - other_sprite.size.y / 2.0
+                                - ball_size.y / 2.0;
                         }
                     }
                 }
